@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-4.1-mini", alias="OPENAI_MODEL")
     anthropic_model: str = Field(default="claude-3-5-sonnet-latest", alias="ANTHROPIC_MODEL")
     gemini_model: str = Field(default="gemini-2.5-pro", alias="GEMINI_MODEL")
+    google_cloud_project: str | None = Field(default=None, alias="GOOGLE_CLOUD_PROJECT")
+    google_cloud_location: str = Field(default="global", alias="GOOGLE_CLOUD_LOCATION")
 
     arena_arbiter_provider: str = Field(default="gpt", alias="ARENA_ARBITER_PROVIDER")
 

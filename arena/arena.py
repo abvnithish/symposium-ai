@@ -117,8 +117,8 @@ def _topic_to_json(t: Any) -> dict[str, Any]:
 
 
 def run_arena(cfg: ArenaConfig, settings: Settings) -> ArenaResult:
-    if len(cfg.agents) < 1:
-        raise ValueError("ArenaConfig.agents must have at least 1 agent.")
+    if len(cfg.agents) < 2:
+        raise ValueError("ArenaConfig.agents must have at least 2 agents.")
 
     transcript: list[TranscriptEvent] = []
     open_items: list[str] = []

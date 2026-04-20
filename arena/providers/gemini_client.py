@@ -9,9 +9,33 @@ from arena.types import Message, ModelSpec
 
 
 class GeminiClient(LLMClient):
-    def __init__(self, spec: ModelSpec, *, api_key: str):
+    def __init__(
+        self, 
+        spec: ModelSpec, 
+        *, 
+        api_key: str, 
+        google_cloud_project: str | None = None,
+        google_cloud_location: str = "us-central1"
+    ):
         super().__init__(spec)
-        self._client = genai.Client(api_key=api_key)
+        self.api_key = api_key
+        self.project = google_cloud_project
+        self.location = google_cloud_location
+        
+        # Primary client (Vertex AI if project is provided)
+        self._vertex_client = None
+        if self.project:
+            try:
+                self._vertex_client = genai.Client(
+                    vertexai=True,
+                    project=self.project,
+                    location=self.location
+                )
+            except Exception as e:
+                print(f"Warning: Failed to initialize Vertex AI client: {e}")
+
+        # Fallback client (AI Studio / API Key)
+        self._api_key_client = genai.Client(api_key=self.api_key)
 
     def complete(
         self,
@@ -20,29 +44,39 @@ class GeminiClient(LLMClient):
         max_output_tokens: int = 600,
         response_model: type[BaseModel] | None = None,
     ) -> LLMResponse:
-        # Convert messages to Gemini SDK contents
-        contents: list[types.Content] = []
-        for m in messages:
-            role = "user" if m.role == "user" else "model"
-            # In Gemini, system prompt can be handled separately in config, 
-            # but for consistency with base, we treat it as a message or use system_instruction.
-            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=m.content)]))
-
-        # Check for system message to use as system_instruction
-        system_instructions = None
+        # Prepare contents
         user_contents = []
-        for c in contents:
-            if messages[contents.index(c)].role == "system":
-                system_instructions = c.parts[0].text
+        system_instructions = None
+        for m in messages:
+            if m.role == "system":
+                system_instructions = m.content
             else:
-                user_contents.append(c)
+                role = "user" if m.role == "user" else "model"
+                user_contents.append(types.Content(role=role, parts=[types.Part.from_text(text=m.content)]))
 
         config_dict = {"max_output_tokens": max_output_tokens}
         if response_model:
             config_dict["response_mime_type"] = "application/json"
             config_dict["response_schema"] = response_model
 
-        resp = self._client.models.generate_content(
+        # Attempt Vertex AI first if available
+        if self._vertex_client:
+            try:
+                resp = self._vertex_client.models.generate_content(
+                    model=self.spec.model,
+                    contents=user_contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instructions,
+                        **config_dict
+                    ),
+                )
+                text = (getattr(resp, "text", None) or "").strip()
+                return LLMResponse(text=text, model=self.spec.model, provider="gemini-vertex")
+            except Exception as e:
+                print(f"Warning: Vertex AI call failed, falling back to AI Studio. Error: {e}")
+
+        # Fallback to AI Studio
+        resp = self._api_key_client.models.generate_content(
             model=self.spec.model,
             contents=user_contents,
             config=types.GenerateContentConfig(
@@ -50,9 +84,6 @@ class GeminiClient(LLMClient):
                 **config_dict
             ),
         )
-        
-        # If response_model was used, SDK might return parsed object, 
-        # but we currently expect LLMResponse to carry the raw text.
         text = (getattr(resp, "text", None) or "").strip()
-        return LLMResponse(text=text, model=self.spec.model, provider="gemini")
+        return LLMResponse(text=text, model=self.spec.model, provider="gemini-studio")
 

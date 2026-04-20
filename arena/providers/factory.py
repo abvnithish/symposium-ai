@@ -42,6 +42,11 @@ def build_client(spec: ModelSpec, settings: Settings) -> LLMClient:
             raise RuntimeError("Missing GOOGLE_API_KEY")
         from arena.providers.gemini_client import GeminiClient
 
-        return _wrap_with_retry_and_delay(GeminiClient(spec, api_key=settings.google_api_key))
+        return _wrap_with_retry_and_delay(GeminiClient(
+            spec, 
+            api_key=settings.google_api_key,
+            google_cloud_project=settings.google_cloud_project,
+            google_cloud_location=settings.google_cloud_location
+        ))
     raise RuntimeError(f"Unknown provider: {provider}")
 
