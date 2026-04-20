@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+runs/
+.DS_Store
+*.docx
+*.pdf
+context*.txt
+arena/Resume_Parsed.txt
